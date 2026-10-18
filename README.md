@@ -7,6 +7,7 @@ Next-action rotation helper for Combat Rogues in **World of Warcraft 3.3.5a (Wot
 ## Features
 
 - **Live next-action queue** — current action shown large, the next two upcoming actions smaller, all on one center line.
+- **Button hints** — every suggested action shows the key it is bound to on your action bars, so you always know which button to press. Updates when you rebind or move spells.
 - **GCD-aware suggestions** — Killing Spree and Adrenaline Rush are suggested while the global cooldown is still running, instead of only after it expires.
 - **Trinket-gated Killing Spree** — KS only goes when a trinket effect is up and no usable trinket is left unused. If both trinkets are off cooldown and neither is up yet, it waits for the burst.
 - **Adrenaline Rush rides with Killing Spree** — AR is held back while KS is ready or within ~6 seconds of coming off cooldown, so it is never wasted just before a KS.
@@ -18,7 +19,7 @@ Next-action rotation helper for Combat Rogues in **World of Warcraft 3.3.5a (Wot
 
 ## Installation
 
-1. Download `RogueRotation-1.0.0.zip` from the [latest release](../../releases/latest).
+1. Download `RogueRotation-1.1.0.zip` from the [latest release](../../releases/latest).
 2. Extract the `RogueRotation` folder into `World of Warcraft/Interface/AddOns/`.
 3. Restart the game or `/reload`.
 

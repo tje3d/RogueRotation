@@ -12,6 +12,7 @@ local NEXT_ICON_SIZE = 54     -- current action, drawn larger
 local SPACING = 5
 local GLOW_NEXT = true
 local SCALE = 1.0
+local SHOW_KEYBINDS = true   -- show the bound key of each action on the icon
 
 -- Adrenaline Rush rides with Killing Spree: AR is not suggested while KS is
 -- ready (even if the trinket gate is still holding it back) or comes off
@@ -87,6 +88,14 @@ for i = 1, MAX_ICONS do
         normal:SetWidth(size * 1.6)
         normal:SetHeight(size * 1.6)
     end
+
+    -- Key hint: the action-bar key bound to this spell, top-right corner.
+    local hotkey = btn:CreateFontString(nil, "OVERLAY")
+    hotkey:SetFont(STANDARD_TEXT_FONT, math.floor(size * 0.28 + 0.5), "OUTLINE")
+    hotkey:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -2, -2)
+    hotkey:SetJustifyH("RIGHT")
+    hotkey:SetTextColor(1, 1, 1)
+    btn.hotkey = hotkey
 
     icons[i] = btn
 end
@@ -172,6 +181,82 @@ local function InitSpells()
         local info = GetSpell(id)
         if info then
             SPELL_MAP[key] = info
+        end
+    end
+end
+
+--------------------------------------------------------------------
+-- Action-bar key hints
+--------------------------------------------------------------------
+-- Maps each tracked spell name to the key it is bound to on the player's
+-- action bars. The cache is rebuilt when the bars or bindings change (and
+-- on a slow safety net), so the per-tick icon update is a plain table hit.
+local KEY_BY_SPELL = {}
+
+-- Default WotLK binding names, by action slot. Slots 13-24 are the paged
+-- bonus bar (they share the main bar's ACTIONBUTTON keys); slots 73-120
+-- are extra bars with no default bindings of their own.
+local function BindingNameForSlot(slot)
+    if slot <= 12 then
+        return "ACTIONBUTTON" .. slot
+    elseif slot <= 24 then
+        return "ACTIONBUTTON" .. (slot - 12)
+    elseif slot <= 36 then
+        return "MULTIACTIONBAR3BUTTON" .. (slot - 24)
+    elseif slot <= 48 then
+        return "MULTIACTIONBAR4BUTTON" .. (slot - 36)
+    elseif slot <= 60 then
+        return "MULTIACTIONBAR2BUTTON" .. (slot - 48)
+    elseif slot <= 72 then
+        return "MULTIACTIONBAR1BUTTON" .. (slot - 60)
+    end
+    return nil
+end
+
+-- Slots searched for a spell, the always-visible bars first; the paged
+-- bonus bar is only a fallback because its keys belong to the main bar.
+local SLOT_SEARCH_ORDER = {}
+do
+    for slot = 1, 12 do SLOT_SEARCH_ORDER[#SLOT_SEARCH_ORDER + 1] = slot end
+    for slot = 25, 72 do SLOT_SEARCH_ORDER[#SLOT_SEARCH_ORDER + 1] = slot end
+    for slot = 13, 24 do SLOT_SEARCH_ORDER[#SLOT_SEARCH_ORDER + 1] = slot end
+end
+
+local function SlotSpellName(slot)
+    local actionType, actionID = GetActionInfo(slot)
+    if actionType == "spell" then
+        return GetSpellInfo(actionID)
+    elseif actionType == "macro" and GetMacroSpell then
+        return GetMacroSpell(actionID)
+    end
+    return nil
+end
+
+local function SlotHoldsSpell(slot, info)
+    local name = SlotSpellName(slot)
+    if name then return name == info.name end
+    -- Macro whose spell cannot be resolved by name: match the icon art.
+    local texture = GetActionTexture(slot)
+    return texture ~= nil and texture == info.texture
+end
+
+local function RebuildKeybinds()
+    for name in pairs(KEY_BY_SPELL) do KEY_BY_SPELL[name] = nil end
+    if not SHOW_KEYBINDS then return end
+
+    for _, id in pairs(RAW_SPELLS) do
+        local info = GetSpell(id)
+        if info and not KEY_BY_SPELL[info.name] then
+            for i = 1, #SLOT_SEARCH_ORDER do
+                local slot = SLOT_SEARCH_ORDER[i]
+                if SlotHoldsSpell(slot, info) then
+                    local key = GetBindingKey(BindingNameForSlot(slot))
+                    if key then
+                        KEY_BY_SPELL[info.name] = key
+                        break
+                    end
+                end
+            end
         end
     end
 end
@@ -550,8 +635,9 @@ local function UpdateActionIcons(spellData)
             local data = spellData[i]
             local s = shownSlots[i]
             local glow = ((i == 1) and GLOW_NEXT and (data.cdLeft <= 0.5)) or false
+            local key = SHOW_KEYBINDS and KEY_BY_SPELL[data.name] or nil
             if s.ref ~= data or s.start ~= data.start or s.duration ~= data.duration
-                or s.oom ~= data.isOOM or s.glow ~= glow then
+                or s.oom ~= data.isOOM or s.glow ~= glow or s.key ~= key then
                 dirty = true
                 break
             end
@@ -603,10 +689,19 @@ local function UpdateActionIcons(spellData)
                 s.alpha = alpha
             end
 
+            local key = SHOW_KEYBINDS and KEY_BY_SPELL[data.name] or nil
+            if s.key ~= key then
+                icon.hotkey:SetText(key or "")
+                s.key = key
+            end
+
             s.ref = data
         else
-            if icon:IsShown() then icon:Hide() end
-            s.ref, s.tex, s.start, s.duration, s.oom, s.glow = nil, nil, nil, nil, nil, nil
+            if icon:IsShown() then
+                icon:Hide()
+                icon.hotkey:SetText("")
+            end
+            s.ref, s.tex, s.start, s.duration, s.oom, s.glow, s.key = nil, nil, nil, nil, nil, nil, nil
         end
     end
 
@@ -750,6 +845,7 @@ end
 local lastUpdate = 0
 local updateInterval = ACTIVE_INTERVAL
 local visTimer = 0
+local keyTimer = 0
 
 mainFrame:SetScript("OnUpdate", function(self, elapsed)
     lastUpdate = lastUpdate + elapsed
@@ -765,12 +861,18 @@ mainFrame:SetScript("OnUpdate", function(self, elapsed)
 
     -- Slow safety net (was a second frame with its own OnUpdate): keep the
     -- frame visible and refresh the aura cache in case an event was missed.
-    -- Runs at most once every two seconds.
+    -- Runs at most once every two seconds; the keybind cache is rebuilt on
+    -- the same slow cadence (once every ~10 seconds).
     visTimer = visTimer + updateInterval
     if visTimer >= 2 then
         visTimer = 0
         UpdateFrameVisibility()
         RebuildPlayerAuras()
+        keyTimer = keyTimer + 1
+        if keyTimer >= 5 then
+            keyTimer = 0
+            RebuildKeybinds()
+        end
     end
 
     if not SPELL_MAP.SS then InitSpells() end
@@ -818,11 +920,18 @@ mainFrame:SetScript("OnEvent", function(self, event, arg1)
         lastUpdate = ACTIVE_INTERVAL
     elseif event == "PLAYER_ENTERING_WORLD" then
         InitSpells()
+        RebuildKeybinds()
         RebuildPlayerAuras()
         UpdateFrameVisibility()
     elseif event == "PLAYER_LOGIN" or event == "LEARNED_SPELL_IN_TAB" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
         InitSpells()
+        RebuildKeybinds()
         UpdateFrameVisibility()
+    elseif event == "ACTIONBAR_SLOT_CHANGED" or event == "ACTIONBAR_PAGE_CHANGED"
+        or event == "UPDATE_BINDINGS" or event == "UPDATE_MACROS" then
+        -- Spells moved on the bars, keys rebound or macros edited: re-resolve
+        -- which key casts each tracked spell.
+        RebuildKeybinds()
     end
 end)
 
@@ -832,4 +941,8 @@ mainFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 mainFrame:RegisterEvent("LEARNED_SPELL_IN_TAB")
 mainFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 mainFrame:RegisterEvent("UNIT_AURA")
+mainFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+mainFrame:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
+mainFrame:RegisterEvent("UPDATE_BINDINGS")
+mainFrame:RegisterEvent("UPDATE_MACROS")
 
