@@ -1,0 +1,7 @@
+## Interface: 30300
+## Title: Rogue Combat Rotation
+## Notes: Shows the next and upcoming actions for a Combat Rogue. Keeps Slice and Dice up and helps maintain rupture/finishers. Zero dependencies.
+## Author: CatJam
+## Version: 1.0.0
+
+RogueRotation.lua
