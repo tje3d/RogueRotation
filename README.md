@@ -1,8 +1,8 @@
 # RogueRotation
 
-Next-action rotation helper for Combat Rogues in **World of Warcraft 3.3.5a (WotLK)**. Shows the action to press right now — drawn larger — plus the next two actions beside it. Zero dependencies.
+Next-action rotation helper for Combat Rogues in **World of Warcraft 3.3.5a (WotLK)**. Shows the action to press right now — drawn larger — plus the next two actions beside it, each labeled with the key to press. Zero dependencies.
 
-![RogueRotation preview](screenshot.png)
+![RogueRotation preview](screenshot.png?v=2)
 
 ## Features
 
@@ -32,11 +32,15 @@ git clone https://github.com/tje3d/RogueRotation.git
 
 ## Usage
 
-Select a target and the queue updates by itself; the left-most icon is what to press next. Drag the frame to reposition it. It appears only for Rogues.
+Select a target and the queue updates by itself; the left-most icon is what to press next. Each icon shows the key bound to that spell on your action bars (blank if the spell is not on a bound slot). Drag the frame to reposition it. It appears only for Rogues.
 
 ## Compatibility
 
 - Interface 30300 (WotLK 3.3.5a), English client spell names.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each release.
 
 ## Notes
 
