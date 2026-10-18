@@ -2,7 +2,7 @@
 
 Next-action rotation helper for Combat Rogues in **World of Warcraft 3.3.5a (WotLK)**. Shows the action to press right now — drawn larger — plus the next two actions beside it, each labeled with the key to press. Zero dependencies.
 
-![RogueRotation preview](screenshot.png?v=2)
+![RogueRotation preview](screenshot-1.1.0.png)
 
 ## Features
 
